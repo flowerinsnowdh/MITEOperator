@@ -1,0 +1,39 @@
+plugins() {
+    id('java')
+    id('com.gradleup.shadow').version("${version_shadow}")
+}
+
+group = 'online.flowerinsnow.h3toh2proxy'
+version = '1.0.0'
+
+configurations() {
+    shade
+    implementation.extendsFrom(shade)
+}
+
+repositories() {
+    mavenCentral()
+}
+
+dependencies() {
+    shade("org.ow2.asm:asm-tree:${version_asm}")
+}
+
+tasks.withType(JavaCompile).configureEach() {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+shadowJar() {
+    from('LICENSE')
+    from('NOTICE')
+
+    manifest() {
+        attributes(['Premain-Class' : 'online.flowerinsnow.miteoperator.MITEOperatorAgent'])
+    }
+
+    configurations = [project.configurations.shade]
+    archiveClassifier = ''
+
+    relocate('org.objectweb.asm', 'online.flowerinsnow.miteoperator.shaded.org.objectweb.asm')
+}
