@@ -1,5 +1,5 @@
 # MITEOperator
-以 java-agent 的方式解锁 [Minecraft Is Too Easy](https://www.mcmod.cn/class/226.html) 原版作弊
+以 java-agent 的方式解锁 [Minecraft Is Too Easy](https://www.mcmod.cn/class/226.html) 原版作弊和权限系统（op）
 
 # 编译
 ```shell
