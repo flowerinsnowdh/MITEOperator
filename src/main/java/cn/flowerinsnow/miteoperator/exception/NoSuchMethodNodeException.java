@@ -1,4 +1,4 @@
-package online.flowerinsnow.miteoperator.exception;
+package cn.flowerinsnow.miteoperator.exception;
 
 public class NoSuchMethodNodeException extends RuntimeException {
     public NoSuchMethodNodeException() {

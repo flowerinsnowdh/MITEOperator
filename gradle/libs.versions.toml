@@ -1,0 +1,9 @@
+[versions]
+asm-tree = "9.9.1"
+shadow = "9.3.0"
+
+[libraries]
+asm-tree = { module = "org.ow2.asm:asm-tree", version.ref = "asm-tree" }
+
+[plugins]
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }

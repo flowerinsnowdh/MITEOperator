@@ -1,6 +1,6 @@
-package online.flowerinsnow.miteoperator;
+package cn.flowerinsnow.miteoperator;
 
-import online.flowerinsnow.miteoperator.util.TransformUtils;
+import cn.flowerinsnow.miteoperator.util.TransformUtils;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
@@ -24,14 +24,16 @@ public class MITEOperatorAgent implements ClassFileTransformer {
         switch (className) {
             case "aa": // CommandHandler
                 return this.transformCommandHandler(classfileBuffer);
-            case "am": // CommandGive 还原被禁用的方法
-                return this.getBytesFromResources("/class_am");
-            case "id": // CommandServerOp 还原被禁用的方法
-                return this.getBytesFromResources("/class_id");
-            case "io": // CommandServerTp 还原被禁用的方法
-                return this.transformCommandServerTp(this.getBytesFromResources("/class_io"));
-            case "ak": // CommandGameMode 还原被禁用的方法
-                return this.getBytesFromResources("/class_ak");
+            case "am": // CommandGive 还原被禁用的命令
+                return this.getBytesFromResources("classes/am.class");
+            case "id": // CommandServerOp 还原被禁用的命令
+                return this.getBytesFromResources("classes/id.class");
+            case "io": // CommandServerTp 还原被禁用的命令
+                return this.transformCommandServerTp(this.getBytesFromResources("classes/io.class"));
+            case "ak": // CommandGameMode 还原被禁用的命令
+                return this.getBytesFromResources("classes/ak.class");
+            case "ah": // CommandEnchant 还原被禁用的命令
+                return this.transformCommandEnchant(this.getBytesFromResources("classes/ah.class"));
             case "ka": // NetServerHandler 禁用DELETE键
                 return this.transformNetServerHandler(classfileBuffer);
             case "hn": // ServerConfigurationManager Necessary
@@ -150,7 +152,7 @@ public class MITEOperatorAgent implements ClassFileTransformer {
     // 禁用DELETE键
     private byte[] transformNetServerHandler(byte[] bytes) {
         return TransformUtils.transformClass(bytes, cn -> {
-            TransformUtils.transformMethod(cn, (mn, actions) -> {
+            TransformUtils.transformMethod(cn, (mn, lazyActions) -> {
                 if ("handleSimpleSignal".equals(mn.name) && "(LPacket85SimpleSignal;)V".equals(mn.desc)) {
                     InsnList instructions = mn.instructions;
 
@@ -158,9 +160,22 @@ public class MITEOperatorAgent implements ClassFileTransformer {
                     for (AbstractInsnNode insnNode : instructions) {
                         if (insnNode.getOpcode() == Opcodes.ALOAD) {
                             VarInsnNode node = (VarInsnNode) insnNode;
-                            if (node.var == 0 && index++ == 72) {
-                                actions.add(() -> {
-                                    instructions.insertBefore(node, new MethodInsnNode(Opcodes.INVOKESTATIC, "net/minecraft/server/MinecraftServer", "setTreacheryDetected", "()V", false));
+                            if (node.var == 4 && index++ == 31) {
+                                lazyActions.add(() -> {
+                                    /*
+                                    + this.kickPlayerFromServer("Treachery detected!");
+                                     */
+                                    instructions.insertBefore(insnNode, new VarInsnNode(Opcodes.ALOAD, 0));
+                                    instructions.insertBefore(insnNode, new LdcInsnNode("Treachery detected!"));
+                                    instructions.insertBefore(insnNode, new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "ka", "c", "(Ljava/lang/String;)V"));
+                                    for (int i = 0; i < 18; i++) {
+                                        AbstractInsnNode next = insnNode.getNext();
+                                        if (next instanceof LabelNode || next instanceof LineNumberNode) {
+                                            i--;
+                                        }
+                                        instructions.remove(next);
+                                    }
+                                    instructions.remove(insnNode);
                                 });
                                 break;
                             }
@@ -197,13 +212,90 @@ public class MITEOperatorAgent implements ClassFileTransformer {
         });
     }
 
+    private byte[] transformCommandEnchant(byte[] bytes) {
+        return TransformUtils.transformClassWithoutComputeFrames(bytes, cn -> {
+            TransformUtils.transformMethod(cn, (mn, lazyAction) -> {
+                if ("b".equals(mn.name) && "(Lad;[Ljava/lang/String;)V".equals(mn.desc)) { // void processCommand(ICommandSender, String[])
+                    InsnList instructions = mn.instructions;
+
+                    // 由于 EntityPlayer 移除了 ItemStack getCurrentEquippedItem()，需要调整为先获取 inventory 再 getCurrentItem()
+                    for (AbstractInsnNode insnNode : instructions) {
+                        if (insnNode.getOpcode() == Opcodes.INVOKEVIRTUAL) {
+                            MethodInsnNode node = (MethodInsnNode) insnNode;
+                            if ("uf".equals(node.owner) && "by".equals(node.name) && "()Lye;".equals(node.desc)) {
+                                lazyAction.add(() -> {
+                                    //   ItemStack var6 = var3.
+                                    // - getCurrentEquippedItem()
+                                    // + inventory
+                                    // + .getCurrentItemStack()
+                                    //   ;
+                                    instructions.insertBefore(node, new FieldInsnNode(Opcodes.GETFIELD, "uf", "bn", "Lud;"));
+                                    instructions.insertBefore(node, new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "ud", "getCurrentItemStack", "()Lye;"));
+                                    instructions.remove(node);
+                                });
+                            }
+                        }
+                    }
+
+                    int index = -1;
+                    for (AbstractInsnNode insnNode : instructions) {
+                        if (insnNode.getOpcode() == Opcodes.ALOAD) {
+                            VarInsnNode varInsnNode = (VarInsnNode) insnNode;
+                            if (varInsnNode.var == 7) {
+                                index++;
+                                if (index == 1) {
+                                    lazyAction.add(() -> {
+                                        /*
+                                          else if (!
+                                        - var7.canApply(var6)
+                                        + true
+                                          )
+                                         */
+                                        instructions.insertBefore(varInsnNode, new InsnNode(Opcodes.ICONST_1));
+                                        instructions.remove(varInsnNode.getNext());
+                                        instructions.remove(varInsnNode.getNext());
+                                        instructions.remove(varInsnNode);
+                                    });
+                                } else if (index == 2) {
+                                    lazyAction.add(() -> {
+                                        /*
+                                          var5 = parseIntBounded(par1ICommandSender, par2ArrayOfStr[2],
+                                        - var7.getMinLevel(),
+                                        + 1,
+                                          var7.getMaxLevel());
+                                         */
+                                        instructions.insertBefore(varInsnNode, new InsnNode(Opcodes.ICONST_1));
+                                        instructions.remove(varInsnNode.getNext());
+                                        instructions.remove(varInsnNode);
+                                    });
+                                } else if (index == 3) {
+                                    lazyAction.add(() -> {
+                                        /*
+                                          var5 = parseIntBounded(par1ICommandSender, par2ArrayOfStr[2], var7.getMinLevel(),
+                                        - var7.getMaxLevel()
+                                        + Byte.MAX_VALUE
+                                          );
+                                         */
+                                        instructions.insertBefore(varInsnNode, new IntInsnNode(Opcodes.BIPUSH, Byte.MAX_VALUE));
+                                        instructions.remove(varInsnNode.getNext());
+                                        instructions.remove(varInsnNode);
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    }
+
     private byte[] transformServerConfigurationManager(byte[] bytes) {
         ClassReader cr = new ClassReader(bytes);
         ClassNode cn = new ClassNode();
         cr.accept(cn, 0);
 
         // 从原版端还原 loadOpsList() 和 saveOpsList()
-        cr = new ClassReader(this.getBytesFromResources("/class_hn"));
+        cr = new ClassReader(this.getBytesFromResources("classes/hn.class"));
         ClassNode vanillaCn = new ClassNode();
         cr.accept(vanillaCn, 0);
 
@@ -232,7 +324,7 @@ public class MITEOperatorAgent implements ClassFileTransformer {
 
         // 从原版端还原 loadOpsList() 方法，MITE 将这个方法直接设为清空 op 列表
         // 还原 saveOpsList() 还原，MITE 将这个方法体直接清空
-        cr = new ClassReader(this.getBytesFromResources("/class_ir"));
+        cr = new ClassReader(this.getBytesFromResources("classes/ir.class"));
         ClassNode vanillaCn = new ClassNode();
         cr.accept(vanillaCn, 0);
 
@@ -259,7 +351,7 @@ public class MITEOperatorAgent implements ClassFileTransformer {
 
         // 从原版端还原 func_110455_j() （推测应该是 getOpPermissionLevel）
         // MITE 将其直接清空并返回了 0
-        cr = new ClassReader(this.getBytesFromResources("/class_is"));
+        cr = new ClassReader(this.getBytesFromResources("classes/is.class"));
         ClassNode vanillaCn = new ClassNode();
         cr.accept(vanillaCn, 0);
 
@@ -284,7 +376,7 @@ public class MITEOperatorAgent implements ClassFileTransformer {
 
         // 从原版端还原 canCommandSenderUseCommand(int, String)
         // 禁用了 MITE 的 inDevMode() 判断
-        cr = new ClassReader(this.getBytesFromResources("/class_jv"));
+        cr = new ClassReader(this.getBytesFromResources("classes/jv.class"));
         ClassNode vanillaCn = new ClassNode();
         cr.accept(vanillaCn, 0);
 
@@ -350,7 +442,7 @@ public class MITEOperatorAgent implements ClassFileTransformer {
     }
 
     private byte[] getBytesFromResources(String path) {
-        try (InputStream in = MITEOperatorAgent.class.getResourceAsStream(path)) {
+        try (InputStream in = MITEOperatorAgent.class.getClassLoader().getResourceAsStream(path)) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             int read;
             byte[] bytes = new byte[1024];
