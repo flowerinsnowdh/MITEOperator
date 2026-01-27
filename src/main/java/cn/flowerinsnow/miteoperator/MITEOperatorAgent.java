@@ -50,6 +50,10 @@ public class MITEOperatorAgent implements ClassFileTransformer {
                 return this.transformEntityPlayerMP(classfileBuffer);
             case "z": // CommandBase 还原原版权限机制
                 return this.transformCommandBase(classfileBuffer);
+            case "abt": // GameRule 还原原版游戏规则机制
+                return this.getBytesFromResources("classes/abt.class");
+            case "al": // CommandGameRule 还原被禁用的命令
+                return this.getBytesFromResources("classes/al.class");
             default:
                 return classfileBuffer;
         }

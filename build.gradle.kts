@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "cn.flowerinsnow.miteoperator"
-version = "1.0.1"
+version = "1.0.2"
 
 repositories {
     System.getenv("GRADLE_CENTRAL_MIRROR")?.let {
